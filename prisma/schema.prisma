@@ -1,0 +1,157 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  auth_id   String   @unique @db.Uuid
+  name      String
+  age       Int?
+  location  String?
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  posts           Post[]    @relation("UserPosts")
+  replies         Reply[]   @relation("UserReplies")
+  rooms           Room[]    @relation("UserRooms")
+  likes           Like[]    @relation("UserLikes")
+  calls           Call[]    @relation("UserCalls")
+  profileImages   Picture[] @relation("UserProfileImages")
+  sentMessages    Message[] @relation("SenderMessages")
+  callsAsCaller   Call[]    @relation("CallerCalls")
+  callsAsReceiver Call[]    @relation("ReceiverCalls")
+
+  @@index([name])
+}
+
+model Tag {
+  id      Int     @id @default(autoincrement())
+  name    String  @unique
+  posts   Post[]  @relation("PostTags")
+  replies Reply[] @relation("ReplyTags")
+
+  @@index([name])
+}
+
+model Post {
+  id       Int     @id @default(autoincrement())
+  text     String
+  is_voice Boolean @default(false)
+  userId   Int
+  user     User    @relation("UserPosts", fields: [userId], references: [id])
+
+  pictures Picture[] @relation("PostPictures")
+  replies  Reply[]   @relation("PostReplies")
+  likes    Like[]    @relation("PostLikes")
+  tags     Tag[]     @relation("PostTags")
+  calls    Call[]    @relation("PostCalls")
+
+  @@index([userId])
+  @@index([text])
+}
+
+model Reply {
+  id       Int    @id @default(autoincrement())
+  text     String
+  postId   Int
+  userId   Int
+  parentId Int? // 親リプライのID（リプライのリプライのため）
+  user     User   @relation("UserReplies", fields: [userId], references: [id])
+  post     Post   @relation("PostReplies", fields: [postId], references: [id])
+
+  pictures Picture[] @relation("ReplyPictures")
+  likes    Like[]    @relation("ReplyLikes")
+  tags     Tag[]     @relation("ReplyTags")
+
+  @@index([postId])
+  @@index([userId])
+}
+
+model Room {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  participants User[]   @relation("UserRooms")
+
+  messages Message[] @relation("RoomMessages")
+  calls    Call[]    @relation("RoomCalls")
+
+  @@index([createdAt])
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  roomId    Int
+  senderId  Int
+  text      String
+  is_voice  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  room     Room      @relation("RoomMessages", fields: [roomId], references: [id])
+  sender   User      @relation("SenderMessages", fields: [userId], references: [id])
+  pictures Picture[] @relation("MessagePictures")
+  userId   Int
+
+  @@index([roomId])
+  @@index([senderId])
+}
+
+model Call {
+  id         Int       @id @default(autoincrement())
+  callerId   Int
+  receiverId Int
+  roomId     Int?
+  postId     Int?
+  startTime  DateTime  @default(now())
+  endTime    DateTime?
+
+  caller   User  @relation("CallerCalls", fields: [callerId], references: [id])
+  receiver User  @relation("ReceiverCalls", fields: [receiverId], references: [id])
+  room     Room? @relation("RoomCalls", fields: [roomId], references: [id])
+  post     Post? @relation("PostCalls", fields: [postId], references: [id])
+  user     User? @relation("UserCalls", fields: [userId], references: [id])
+  userId   Int?
+
+  @@index([callerId])
+  @@index([receiverId])
+  @@index([startTime])
+}
+
+model Picture {
+  id       Int    @id @default(autoincrement())
+  url      String
+  entityId Int
+
+  post    Post?    @relation("PostPictures", fields: [entityId], references: [id], onDelete: Cascade, map: "UniquePostPictureRelation")
+  reply   Reply?   @relation("ReplyPictures", fields: [entityId], references: [id], onDelete: Cascade, map: "UniqueReplyPictureRelation")
+  message Message? @relation("MessagePictures", fields: [entityId], references: [id], onDelete: Cascade, map: "UniqueMessagePictureRelation")
+  user    User?    @relation("UserProfileImages", fields: [entityId], references: [id], onDelete: Cascade, map: "UniqueUserProfileImageRelation")
+
+  @@index([entityId])
+}
+
+model Like {
+  id       Int @id @default(autoincrement())
+  userId   Int
+  entityId Int
+
+  user  User   @relation("UserLikes", fields: [userId], references: [id])
+  post  Post?  @relation("PostLikes", fields: [entityId], references: [id], onDelete: Cascade, map: "UniquePostLikeRelation")
+  reply Reply? @relation("ReplyLikes", fields: [entityId], references: [id], onDelete: Cascade, map: "UniqueReplyLikeRelation")
+
+  @@unique([userId, entityId])
+  @@index([userId])
+  @@index([entityId])
+}
